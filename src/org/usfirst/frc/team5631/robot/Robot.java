@@ -21,7 +21,7 @@ public class Robot extends IterativeRobot {
 	BuiltInAccelerometer acc;
 
 	private double limiter;
-	private int timer;
+	private int timer, timer2;
 	private boolean b = false;
 	private double leftM, rightM;
 
