@@ -1,13 +1,13 @@
-//NOLAN
 
 package org.usfirst.frc.team5631.robot;
 
 import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.Gyro;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
 import edu.wpi.first.wpilibj.Talon;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
-
+import edu.wpi.first.wpilibj.Encoder;
 /**
  * The VM is configured to automatically run this class, and to call the
  * functions corresponding to each mode, as described in the IterativeRobot
@@ -16,25 +16,28 @@ import edu.wpi.first.wpilibj.BuiltInAccelerometer;
  * directory.
  */
 public class Robot extends IterativeRobot {
+    
 	Joystick driver;
 	Talon rightMotor1, rightMotor2, leftMotor1, leftMotor2;
 	BuiltInAccelerometer acc;
 
 	private double limiter;
-	private int timer, timer2;
+	private int timer;
 	private boolean b = false;
 	private double leftM, rightM;
-
+	
+	//gyro
+	private Gyro gyro;
+	private int gyroInput = 1;
+	private double adjust;
 	// Auto
 	RobotDrive robot;
 	private boolean execute;
-
-	/**
-	 * This function is run when the robot is first started up and should be
-	 * used for any initialization code.
-	 */
-	public void robotInit() {
-		driver = new Joystick(0); // passing in port of the joystick
+	private Encoder e;
+	
+	
+    public void robotInit() {
+    	driver = new Joystick(0); // passing in port of the joystick
 		leftMotor1 = new Talon(0);
 		leftMotor2 = new Talon(1);
 		rightMotor1 = new Talon(2); // port is based on roboRio pwm ports
@@ -44,19 +47,41 @@ public class Robot extends IterativeRobot {
 		timer = 0;
 		leftM = 1;
 		rightM = 1;
-
-		System.out.println("Loading...");
 		
+		gyro = new Gyro(gyroInput);
+		adjust = 0;
 		// Auto
 		robot = new RobotDrive(leftMotor1, leftMotor2, rightMotor1, rightMotor2);
 		execute = false;
-	}
+    }
 
-	/**
-	 * This function is called periodically during autonomous
-	 */
-	public void autonomousPeriodic() {
-		System.out.println(execute +"\tBtn ~ " + driver.getRawButton(1));
+    /**
+     * This function is called periodically during autonomous
+     */
+    public void autonomousPeriodic() {
+
+    }
+
+    /**
+     * This function is called periodically during operator control
+     */
+    public void teleopPeriodic() {//Set the gyro
+		
+		double throttle = driver.getRawAxis(3);// will cap the max speed
+		double t = ((1 + -throttle) / 2); // determine the limiting value from
+		
+		leftMotor1.set(driver.getRawAxis(2) * t);
+		leftMotor2.set(driver.getRawAxis(2) * t);
+		rightMotor1.set(driver.getRawAxis(2) * t);
+		rightMotor2.set(driver.getRawAxis(2) * t);
+		
+		if (driver.getRawButton(1)) {//set gyro
+			adjust = gyro.getAngle();
+		}
+        
+    }
+    
+    public void command(){
 		if (!execute) {
 			if (driver.getRawButton(1)) {
 				execute = true;
@@ -73,35 +98,12 @@ public class Robot extends IterativeRobot {
 			}
 		}
 	}
-
-	/**
-	 * This function is called periodically during operator control Simple tank
-	 * drive
-	 */
-	public void teleopPeriodic() {// MR C
-		if (!execute) {
-			if (driver.getRawButton(1)) {
-				execute = true;
-				timer = 0;
-			}
-		} else {
-			timer++;
-			if (timer < 60)
-				robot.drive(0.2, 0);
-			if (timer > 60 && timer < 130)
-				robot.drive(0.2, 1);
-			if (timer > 130) {
-				execute = false;
-			}
-		}
-	}
-
-	/**
-	 * This function is called periodically during test mode
-	 */
-	public void testPeriodic() {
-		System.out.println("TestPeriodic");
-		timer++;
+    
+    /**
+     * This function is called periodically during test mode
+     */
+    public void testPeriodic() {
+    	timer++;
 		if (timer > 60) {
 			timer = 0;
 		}
@@ -159,6 +161,25 @@ public class Robot extends IterativeRobot {
 			System.out.println("forward ~ " + forward + "\tThrottle ~ " + t
 					+ "\t Limiter ~ " + limiter);
 		}
+    }
+    
+    
+	//Swerve Drive - first try? #itMightNotWork
+	
+	public double getX(){ //xAxis = 0 yAxis = 1
+		double theta1 = Math.atan(driver.getRawAxis(0)/driver.getRawAxis(1));
+		double h = driver.getRawAxis(1) / Math.sin(theta1);
+		double thetaX = (adjust-gyro.getAngle())+theta1;
+		return (h*Math.sin(thetaX));
+		//return ((driver.getRawAxis(1) / Math.sin(Math.atan(driver.getRawAxis(0)/driver.getRawAxis(1))))*Math.sin((adjust-gyro.getAngle())+(Math.atan(driver.getRawAxis(0)/driver.getRawAxis(1)))));
 	}
-
+	
+	public double getY(){
+		double theta2 = Math.atan(driver.getRawAxis(1)/driver.getRawAxis(0));
+		double h = driver.getRawAxis(1) / Math.sin(theta2);
+		double thetaY = theta2 - (adjust-gyro.getAngle());
+		return (h*Math.sin(thetaY));
+		//return ((driver.getRawAxis(1) / Math.sin(Math.atan(driver.getRawAxis(1)/driver.getRawAxis(0)))*Math.sin((Math.atan(driver.getRawAxis(1)/driver.getRawAxis(0))) - (adjust-gyro.getAngle()))));
+	}
+    
 }
