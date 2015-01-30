@@ -1,13 +1,17 @@
 //Main branch
 package org.usfirst.frc.team5631.robot;
 
-import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.Gyro;
+import edu.wpi.first.wpilibj.IterativeRobot;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.RobotDrive;
-import edu.wpi.first.wpilibj.Talon;
-import edu.wpi.first.wpilibj.BuiltInAccelerometer;
+import edu.wpi.first.wpilibj.SerialPort;
 import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.first.wpilibj.SerialPort.Port;
+import edu.wpi.first.wpilibj.Talon;
+
+
 /**
  * The VM is configured to automatically run this class, and to call the
  * functions corresponding to each mode, as described in the IterativeRobot
@@ -24,12 +28,21 @@ public class Robot extends IterativeRobot {
 	private int timer;
 	private boolean b = false;
 	private double leftM, rightM;
-
+	
+	//Motor control
+	private final double MAXPPS = 10;
+	private MotorControl leftSide, rightSide;
+	
 	// gyro
 	private Gyro gyro;
-	private int gyroInput = 1;
+	private int gyroInput = 0;
 	private double adjust;
 	private boolean enabled;
+	SerialPort port1;
+	int rotation;
+	
+	//encoder
+	private Encoder eLeft, eRight;
 
 	// Auto
 	RobotDrive robot;
@@ -55,10 +68,16 @@ public class Robot extends IterativeRobot {
 		gyro = new Gyro(gyroInput);
 		adjust = 0;
 		enabled = false;
+		port1 = new SerialPort(38400, Port.kUSB);
 		// Auto
 		robot = new RobotDrive(leftMotor1, leftMotor2, rightMotor1, rightMotor2);
 		execute = false;
-		// e.getR
+		// Encoder
+		eLeft = new Encoder(2, 3);
+		eRight = new Encoder(0,1);
+		
+		leftSide = new MotorControl();
+		rightSide = new MotorControl();
 	}
 
 	/**
@@ -72,7 +91,54 @@ public class Robot extends IterativeRobot {
 	 * This function is called periodically during operator control Simple tank
 	 * drive
 	 */
-	public void teleopPeriodic() {// Set the gyro
+	public void teleopPeriodic() {
+		double xAxis = driver.getRawAxis(0);
+		double forward = driver.getRawAxis(1); // Front back
+		double throttle = driver.getRawAxis(3);// will cap the max speed
+		double t = ((1 + -throttle) / 2); // determine the limiting value from
+		
+		if (driver.getRawButton(1)) {// brake (trigger button)
+			// set speeds to zero
+			leftMotor1.set(0);
+			leftMotor2.set(0);
+			rightMotor1.set(0);
+			rightMotor2.set(0);
+			System.out.println("Brake");
+		} else {
+			if (xAxis < -0.1) {// left
+				leftM = 1 - Math.abs(xAxis);// slow down the left tracks
+				rightM = 1;
+			} else if (xAxis > 0.1) {// right
+				rightM = 1 - Math.abs(xAxis);// slow down the right side
+				leftM = 1;
+			} else {
+				leftM = 1;
+				rightM = 1;
+			}
+			
+			leftSide.run(forward*t*leftM*MAXPPS , eLeft.getRate(), eRight.getRate());
+			rightSide.run(forward*t*rightM*MAXPPS, eRight.getRate(), eLeft.getRate());
+			
+			leftMotor1.set(leftSide.getPower());
+			leftMotor2.set(leftSide.getPower());
+			rightMotor1.set(rightSide.getPower());
+			rightMotor1.set(rightSide.getPower());
+			
+			if (forward > -0.1 && forward < 0.1) {
+				if (driver.getRawAxis(2) < -0.1 || driver.getRawAxis(2) > 0.1) {
+					leftMotor1.set(driver.getRawAxis(2) * t);
+					leftMotor2.set(driver.getRawAxis(2) * t);
+					rightMotor1.set(driver.getRawAxis(2) * t);
+					rightMotor2.set(driver.getRawAxis(2) * t);
+				}
+			}
+		}
+	}
+	
+	
+	public void basicRun(){
+		
+		// Set the gyro
 
 		double throttle = driver.getRawAxis(3);// will cap the max speed
 		double t = ((1 + -throttle) / 2); // determine the limiting value from
@@ -81,7 +147,9 @@ public class Robot extends IterativeRobot {
 		leftMotor2.set(driver.getRawAxis(2) * t);
 		rightMotor1.set(driver.getRawAxis(2) * t);
 		rightMotor2.set(driver.getRawAxis(2) * t);
-
+		
+		System.out.println(gyro.getAngle());
+		
 		if (driver.getRawButton(1)) {// set gyro
 			adjust = gyro.getAngle();
 		}
@@ -109,6 +177,16 @@ public class Robot extends IterativeRobot {
 	 * This function is called periodically during test mode
 	 */
 	public void testPeriodic() {
+		byte [] b = port1.read(5);
+		
+		String s = "";
+		
+		for(int i = 0; i < 5; i ++){
+			
+			s += (char)b[i];
+			
+		}
+		System.out.println(s);
 		// System.out.println("Gyro ~ "+ gyro.getAngle());
 		timer++;
 		if (timer > 60) {//Once a sec
@@ -187,7 +265,7 @@ public class Robot extends IterativeRobot {
 			}
 		}
 		if (timer == 60) {// data output
-			System.out.println("Gyro Enabled ~ " + enabled + "\tY Axis ~ " + getY() + "\tX Axis ~ " + getX());
+			System.out.println("Gyro Enabled ~ " + enabled + "\tY Axis ~ " + getY() + "\tX Axis ~ " + getX() +"\t Gyro Angle ~ " + gyro.getAngle());
 		}
 	}
 
